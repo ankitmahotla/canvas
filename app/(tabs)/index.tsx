@@ -1,75 +1,104 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
-
-import { HelloWave } from '@/components/HelloWave';
-import ParallaxScrollView from '@/components/ParallaxScrollView';
-import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
+import {
+  Canvas,
+  Group,
+  Image as SkiaImage,
+  useImage,
+} from "@shopify/react-native-skia";
+import {
+  Gesture,
+  GestureDetector,
+  GestureHandlerRootView,
+} from "react-native-gesture-handler";
+import { useSharedValue, useDerivedValue } from "react-native-reanimated";
 
 export default function HomeScreen() {
+  const gridOffsetX = useSharedValue(0);
+  const gridOffsetY = useSharedValue(0);
+
+  const images = [
+    {
+      id: 1,
+      x: useSharedValue(100),
+      y: useSharedValue(100),
+      width: 50,
+      height: 50,
+    },
+    {
+      id: 2,
+      x: useSharedValue(200),
+      y: useSharedValue(150),
+      width: 50,
+      height: 50,
+    },
+    {
+      id: 3,
+      x: useSharedValue(300),
+      y: useSharedValue(200),
+      width: 50,
+      height: 50,
+    },
+  ];
+
+  const draggingImageId = useSharedValue<number | null>(null);
+
+  const pan = Gesture.Pan()
+    .onBegin((e) => {
+      const touchX = e.x - gridOffsetX.value;
+      const touchY = e.y - gridOffsetY.value;
+      for (const img of images) {
+        if (
+          touchX >= img.x.value &&
+          touchX <= img.x.value + img.width &&
+          touchY >= img.y.value &&
+          touchY <= img.y.value + img.height
+        ) {
+          draggingImageId.value = img.id;
+          return;
+        }
+      }
+      draggingImageId.value = null;
+    })
+    .onChange((e) => {
+      const img = images.find((img) => img.id === draggingImageId.value);
+      if (img) {
+        img.x.value += e.changeX;
+        img.y.value += e.changeY;
+      } else {
+        gridOffsetX.value += e.changeX;
+        gridOffsetY.value += e.changeY;
+      }
+    })
+    .onEnd(() => {
+      draggingImageId.value = null;
+    });
+
+  const imageTransforms = images.map((img) =>
+    useDerivedValue(() => [
+      { translateX: img.x.value + gridOffsetX.value },
+      { translateY: img.y.value + gridOffsetY.value },
+    ]),
+  );
+
+  const image = useImage(require("../../assets/images/favicon.png"));
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <GestureDetector gesture={pan}>
+        <Canvas style={{ flex: 1 }}>
+          {image &&
+            images.map((img, i) => (
+              <Group key={img.id} transform={imageTransforms[i]}>
+                <SkiaImage
+                  x={0}
+                  y={0}
+                  image={image}
+                  width={img.width}
+                  height={img.height}
+                />
+              </Group>
+            ))}
+        </Canvas>
+      </GestureDetector>
+    </GestureHandlerRootView>
   );
 }
-
-const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
-  },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
-  },
-});
