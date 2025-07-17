@@ -1,66 +1,85 @@
 import { create } from "zustand";
-import { createJSONStorage, persist } from "zustand/middleware";
+import { persist, createJSONStorage } from "zustand/middleware";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import uuid from "react-native-uuid";
 
-type Sticker = {
+interface ImagePosition {
   id: string;
   x: number;
   y: number;
   width: number;
   height: number;
-};
+}
 
-type StickerState = {
-  stickers: Sticker[];
-};
+interface ImageStore {
+  gridOffsetX: number;
+  gridOffsetY: number;
+  images: ImagePosition[];
+  setGridOffset: (x: number, y: number) => void;
+  updateImagePosition: (id: string, x: number, y: number) => void;
+  initializeImages: (images: ImagePosition[]) => void;
+  addImage: (x: number, y: number, width: number, height: number) => void;
+}
 
-type CanvasState = {
-  offsetX: number;
-  offsetY: number;
-  stickers: StickerState;
-};
-
-const initialState: CanvasState = {
-  offsetX: 0,
-  offsetY: 0,
-  stickers: {
-    stickers: [],
-  },
-};
-
-export const useCanvasStore = create<
-  CanvasState & {
-    addSticker: (sticker: Sticker) => void;
-    moveSticker: (id: string, x: number, y: number) => void;
-    setOffset: (x: number, y: number) => void;
-  }
->()(
+export const useImageStore = create<ImageStore>()(
   persist(
-    (set) => ({
-      ...initialState,
-      addSticker: (sticker) =>
+    (set, get) => ({
+      gridOffsetX: 0,
+      gridOffsetY: 0,
+      images: [
+        {
+          id: uuid.v4() as string,
+          x: 100,
+          y: 100,
+          width: 50,
+          height: 50,
+        },
+        {
+          id: uuid.v4() as string,
+          x: 200,
+          y: 150,
+          width: 50,
+          height: 50,
+        },
+        {
+          id: uuid.v4() as string,
+          x: 300,
+          y: 200,
+          width: 50,
+          height: 50,
+        },
+      ],
+      setGridOffset: (x: number, y: number) =>
+        set({ gridOffsetX: x, gridOffsetY: y }),
+      updateImagePosition: (id: string, x: number, y: number) =>
         set((state) => ({
-          stickers: {
-            stickers: [...state.stickers.stickers, sticker],
-          },
+          images: state.images.map((img) =>
+            img.id === id ? { ...img, x, y } : img,
+          ),
         })),
-      moveSticker: (id, x, y) =>
+      initializeImages: (images: ImagePosition[]) => set({ images }),
+      addImage: (x: number, y: number, width: number, height: number) =>
         set((state) => ({
-          stickers: {
-            stickers: state.stickers.stickers.map((s) =>
-              s.id === id ? { ...s, x, y } : s,
-            ),
-          },
-        })),
-      setOffset: (x, y) =>
-        set(() => ({
-          offsetX: x,
-          offsetY: y,
+          images: [
+            ...state.images,
+            {
+              id: uuid.v4() as string,
+              x,
+              y,
+              width,
+              height,
+            },
+          ],
         })),
     }),
     {
-      name: "canvas-store",
+      name: "image-positions-storage",
       storage: createJSONStorage(() => AsyncStorage),
+      partialize: (state) => ({
+        gridOffsetX: state.gridOffsetX,
+        gridOffsetY: state.gridOffsetY,
+        images: state.images,
+      }),
     },
   ),
 );

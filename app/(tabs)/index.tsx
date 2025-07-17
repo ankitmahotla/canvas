@@ -9,37 +9,57 @@ import {
   GestureDetector,
   GestureHandlerRootView,
 } from "react-native-gesture-handler";
-import { useSharedValue, useDerivedValue } from "react-native-reanimated";
+import {
+  useSharedValue,
+  useDerivedValue,
+  runOnJS,
+} from "react-native-reanimated";
+import { useEffect } from "react";
+import { useImageStore } from "@/store/canvas";
 
 export default function HomeScreen() {
-  const gridOffsetX = useSharedValue(0);
-  const gridOffsetY = useSharedValue(0);
+  const {
+    gridOffsetX: storedGridOffsetX,
+    gridOffsetY: storedGridOffsetY,
+    images: storedImages,
+    setGridOffset,
+    updateImagePosition,
+  } = useImageStore();
 
-  const images = [
-    {
-      id: 1,
-      x: useSharedValue(100),
-      y: useSharedValue(100),
-      width: 50,
-      height: 50,
-    },
-    {
-      id: 2,
-      x: useSharedValue(200),
-      y: useSharedValue(150),
-      width: 50,
-      height: 50,
-    },
-    {
-      id: 3,
-      x: useSharedValue(300),
-      y: useSharedValue(200),
-      width: 50,
-      height: 50,
-    },
-  ];
+  // Initialize shared values from store
+  const gridOffsetX = useSharedValue(storedGridOffsetX);
+  const gridOffsetY = useSharedValue(storedGridOffsetY);
 
-  const draggingImageId = useSharedValue<number | null>(null);
+  // Create images array with shared values initialized from store
+  const images = storedImages.map((img) => ({
+    id: img.id,
+    x: useSharedValue(img.x),
+    y: useSharedValue(img.y),
+    width: img.width,
+    height: img.height,
+  }));
+
+  const draggingImageId = useSharedValue<string | null>(null);
+
+  // Sync shared values with store on mount
+  useEffect(() => {
+    gridOffsetX.value = storedGridOffsetX;
+    gridOffsetY.value = storedGridOffsetY;
+
+    images.forEach((img, index) => {
+      img.x.value = storedImages[index].x;
+      img.y.value = storedImages[index].y;
+    });
+  }, [storedGridOffsetX, storedGridOffsetY, storedImages]);
+
+  // Functions to persist to store
+  const persistGridOffset = (x: number, y: number) => {
+    setGridOffset(x, y);
+  };
+
+  const persistImagePosition = (id: string, x: number, y: number) => {
+    updateImagePosition(id, x, y);
+  };
 
   const pan = Gesture.Pan()
     .onBegin((e) => {
@@ -69,6 +89,15 @@ export default function HomeScreen() {
       }
     })
     .onEnd(() => {
+      // Persist final positions to store
+      if (draggingImageId.value) {
+        const img = images.find((img) => img.id === draggingImageId.value);
+        if (img) {
+          runOnJS(persistImagePosition)(img.id, img.x.value, img.y.value);
+        }
+      } else {
+        runOnJS(persistGridOffset)(gridOffsetX.value, gridOffsetY.value);
+      }
       draggingImageId.value = null;
     });
 
